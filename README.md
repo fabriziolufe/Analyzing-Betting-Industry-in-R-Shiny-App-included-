@@ -3,4 +3,4 @@ IESEG School of Management project co-authored by Doménica Quiñones: https://w
 
 Description of the project: https://www.scribd.com/document/621704216/Group-Assignment-Open-Source-Programming-2022-7?secret_password=z7HxJ3Vitl58NXNaKyIL
 
-Link to Shiny App: 
+Link to Shiny App: https://luisafrs.shinyapps.io/App1/
