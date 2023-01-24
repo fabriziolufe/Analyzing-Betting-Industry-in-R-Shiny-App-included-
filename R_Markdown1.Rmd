@@ -1,0 +1,555 @@
+---
+title: "Marketing Data Manual"
+subtitle: "Group Assignment - Open Source Programming 2022"
+author: "By Lucero Fabrizio, Ramírez Luisa, Quiñones Doménica"
+date: "`r format(Sys.Date(), '%b %d, %Y')`"
+output: pdf_document
+---
+
+```{r include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(haven)
+library(lubridate)
+library(data.table)
+library(lubridate)
+library(tidyr)
+library(scales)
+library(dplyr)
+library(readxl)
+library(stringr)
+library(ggpubr)
+library(cluster)
+library(factoextra)
+
+
+#data <- read.csv("Data_Mart_Raw.csv")
+Marketing_Insights <- read.csv("Marketing_Insights.csv")
+
+shiny_colors <- function(...) {
+  
+  shiny_colors <- c(
+    `bwin`     = "#ffcc00",
+    `bwinlight` = "#ffed80",
+    `orange`     = "#ffc66a",
+    `green`    = "#eee19e",
+    `yellow`   = "#ffea9d",
+    `whiteish`="#fffecc",
+    `grey`="#8e8685",
+    `red`="#ff7363",
+    `pink`="#ff8277",
+    `salmon`="#ffd9b8"
+    
+  )
+  
+  cols <- c(...)
+  
+  if (is.null(cols))
+    return (shiny_colors)
+  
+  shiny_colors[cols]
+}
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The manual provides the summary statistics and the detailed description of the gamblers’ metrics.
+
+These datasets are retrieved from an internet gambling research project including the Division on 
+Addictions (DOA) and bwin Interactive Entertainment, AG (bwin), an Internet betting service 
+provider headquartered in Vienna, Austria. The information provides evidence from the first 
+eight months of the Internet sports betting behavior study that took place from February 1 to September 30, 2005. 
+
+### Summary statistics
+
+The dataset used for these report consists of `r ncol(Marketing_Insights)` variables, 12 demographics and 12 marketing insights, and `r nrow(Marketing_Insights)` rows or unique customers.
+
+The customers are distributed by gender as follows:
+
+```{r, echo=FALSE, warning=FALSE, fig.height = 3.5, fig.width = 4.5, fig.align = "center"}
+
+data_gender <- aggregate(Marketing_Insights$Gender, by=list(Marketing_Insights$Gender), FUN = length)
+colnames(data_gender) <- c("Gender","Count_Gender")
+data_gender$Gender<- ifelse(data_gender$Gender == 1, "Male","Female")
+data_gender$Perc <- data_gender$Count_Gender/sum(data_gender$Count_Gender)
+data_gender$Perc2 <- percent(round(data_gender$Perc,3))
+
+ggplot(data_gender, aes(x=Gender, y=Perc, fill=Gender)) + 
+  geom_bar(stat = "identity") +
+  labs(title="Gender Distribution", x="Gender", y="Proportion") +
+  geom_text(aes(label = Perc2),  size=2.5, position = position_dodge(width = 2), vjust=-0.5) +
+  theme(plot.title = element_text(hjust=0.5),
+        legend.position = 'none',
+        axis.title.x = element_text(size = 8),
+        axis.text.x = element_text(size = 8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8)) +
+  scale_fill_manual(values = unname(c(shiny_colors("bwinlight","orange"))))
+
+```
+
+\newpage
+
+The data presents information of the residence of the customers, which includes `r n_distinct(Marketing_Insights$Country_Name)` countries. The following chart shows the top 5 frequent countries, all other countries are classified as 'Other'.
+
+```{r, echo=FALSE, warning=FALSE, fig.height = 3, fig.width = 4.5, fig.align = "center"}
+
+data_country <- aggregate(Marketing_Insights$Country_Name, by=list(Marketing_Insights$Country_Name), FUN = length)
+colnames(data_country) <- c("Country","Count_Country")
+
+data_country <- data_country %>% 
+  arrange(desc(Count_Country)) %>%
+  mutate(Country2 = ifelse(Count_Country<1000,'Other',Country))
+
+data_country <- data_country %>%
+  group_by(Country2) %>%
+  summarize(Count_Country = sum(Count_Country)) %>%
+  arrange(desc(Count_Country))
+colnames(data_country) <- c("Country","Count_Country")
+
+data_country$Perc <- round(data_country$Count_Country/sum(data_country$Count_Country),4)
+data_country$Perc2 <- percent(round(data_country$Perc,2))
+
+ggplot(data_country, aes(x=Country, y=Perc, fill=Country)) + 
+  geom_col() +
+  labs(title="Country Distribution", x="Country", y="Proportion") +
+  theme(axis.title.x = element_text(size = 8),
+        axis.text.x = element_text(size=8, angle=0),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5),
+        legend.position = 'none') +
+  geom_text(aes(label = Perc2),  size=2.5, hjust=0) +
+  coord_flip() +
+  scale_fill_manual(values = unname(c(shiny_colors("bwinlight","orange","green","pink","yellow","whiteish","grey","bwin","red","salmon"))))
+
+```
+
+The customers speak `r n_distinct(Marketing_Insights$Language_Description)` languages, including: `r unique(Marketing_Insights$Language_Description)`. The top 5 spoken languages are presented below, the rest are classified as "Other":
+
+```{r, echo=FALSE, warning=FALSE, fig.height = 3, fig.width = 4.5, fig.align = "center"}
+
+data_language <- aggregate(Marketing_Insights$Language_Description, by=list(Marketing_Insights$Language_Description), FUN = length)
+colnames(data_language) <- c("Language","Count_Language")
+data_language <- data_language %>% 
+  arrange(desc(Count_Language)) %>%
+  mutate(Language2 = ifelse(Count_Language > 2200, Language, 'Other')) %>%
+  group_by(Language2) %>%
+  summarise(Count_Language = sum(Count_Language))
+data_language$Perc <- data_language$Count_Language/sum(data_language$Count_Language)
+data_language$Perc2 <- percent(round(data_language$Count_Language/sum(data_language$Count_Language),3))
+
+ggplot(data_language, aes(x=Language2, y=Perc, fill=Language2)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(size=8, angle=0),
+        axis.title.x = element_text(size = 8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5),
+        legend.position = 'none') +
+  geom_text(aes(label = Perc2), size = 2.5, vjust = -0.5) +
+  labs(title="Language Distribution", x="Language", y="Proportion") +
+  scale_fill_manual(values = unname(c(shiny_colors("bwinlight","orange","pink","green","red","grey"))))
+
+```
+
+\newpage
+
+The three websites with most frequent usage represent more than 90% of the applications: 
+
+```{r, echo=FALSE, warning=FALSE, fig.height = 3, fig.width = 4.5, fig.align = "center"}
+
+data_apps <- aggregate(Marketing_Insights$Application_Description, by=list(Marketing_Insights$Application_Description), FUN = length)
+colnames(data_apps) <- c("App","Count_App")
+
+data_apps <- data_apps %>% 
+  arrange(desc(Count_App)) %>%
+  mutate(App2 = ifelse(Count_App > 2200, App, 'Other')) %>%
+  group_by(App2) %>%
+  summarise(Count_App = sum(Count_App))
+  #slice(1:5)
+data_apps$Perc <- data_apps$Count_App/sum(data_apps$Count_App)
+data_apps$Perc2 <- percent(round(data_apps$Count_App/sum(data_apps$Count_App),3))
+
+ggplot(data_apps, aes(x=App2, y=Perc, fill=App2)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(size=8, angle=15),
+        axis.title.x = element_text(size = 8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5),
+        legend.position = 'none') +
+  geom_text(aes(label = Perc2), size = 2.5, vjust = -0.5) +
+  labs(title="Betting Applications Use", x="Website", y="Proportion") +
+  scale_fill_manual(values = unname(c(shiny_colors("bwinlight","orange","pink","green"))))
+
+```
+
+
+## Description of the gamblers’ metrics
+
+
+### Customer Participation
+
+#### LoR Metrics
+
+The Length of Relationship measures the time a client has been engaged in the period of study. It is obtained finding the amount of days between the last and the first day of activity. The plot shows that the majority of the customers have a LOR between 0 and 25 days and 200 and 240 days.
+
+#### Beginners Inactivity
+
+Is the amount of days between registration and first activity. It measures the time needed by each customer to start playing on the websites.
+
+```{r BI, echo=FALSE, warning=FALSE, fig.height = 3, fig.width = 6, fig.align = "center"}
+
+MI_BI_LOR <- Marketing_Insights[,c('UserID','LoR','Beginner_Inactivity')]
+
+MI_BI_LOR2 <- MI_BI_LOR %>% pivot_longer(cols=c('LoR','Beginner_Inactivity'),
+                                   names_to='Insight',
+                                   values_to='Values')
+
+ggplot(MI_BI_LOR2, aes(x=Values, fill=Insight)) + 
+  geom_histogram(bins = 30) + 
+  facet_grid(rows = vars(Insight), scales = 'free_y') +
+  theme(legend.position = "right",
+        axis.text.x = element_text(size=8),
+        axis.title.x = element_text(size = 8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5)) +
+  labs(title="Activity Analysis", x="Days", y="Frequency") +
+  scale_fill_manual(values = unname(c(shiny_colors("orange","red"))))
+
+```
+
+\newpage
+### Recency, Frequency and Monetary Value
+
+The RFM Value analyzes the consumers based on its habits. Recency determines how long ago the customer made the last purchase or bet (measured in days), Frequency evaluates how often they bet (measured in amount of bets in a determined period) and Monetary, the amount of money spent on bets. The chart has information of the quantile .95 and shows the general patterns of the bet consumers: 
+
+```{r FRM, echo=FALSE, warning=FALSE, fig.height = 3, fig.width = 7, fig.align = "center"}
+
+MI_FRM <- Marketing_Insights[,c('UserID','Recency','Frequency','Monetary')]
+
+MI_FRM2 <- MI_FRM %>%
+  filter(Frequency < quantile(Frequency, .95),
+         Monetary < quantile(Monetary, .95)) %>%
+  pivot_longer(cols=c('Recency','Frequency','Monetary'),
+                                                     names_to='FRM',
+                                                     values_to='values')
+
+ggplot(MI_FRM2, aes(x=values, fill=FRM)) + 
+  geom_histogram(bins = 30) + 
+  facet_grid(cols = vars(FRM), scales = 'free_x') +
+  theme(legend.position = "top",
+        axis.text.x = element_text(size=8),
+        axis.title.x = element_text(size = 8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5)) +
+  labs(title="RFM Value", x="Values", y="Frequency") +
+  scale_fill_manual(values = unname(c(shiny_colors("bwinlight","orange","red"))))
+
+```
+
+### Customer Lifetime Value 
+
+The CLV is the total revenue each customer brings to the company over the period of relationship. It is calculated as follows:
+
+$$CLV = \frac{Gross Margin}{Retention Rate}$$
+Where,
+
+Gross Margin = Total Bets Revenue – Total Expenses
+
+Retention Rate = Number of users that stayed betting after Sept 2005 / Total number of users
+
+```{r CLV, echo=FALSE, warning=FALSE, fig.height = 2.5, fig.width = 4.5, fig.align = "center"}
+
+data_clv <- Marketing_Insights %>%
+  mutate(month = month(Date_Initial_AllGames)) %>%
+  group_by(month) %>%
+  summarise(avg_clv = round(mean(CLV),0)) %>%
+  slice(1:8)
+
+data_clv$month <- as.character(data_clv$month) 
+
+ggplot(data_clv, aes(x=month, y=avg_clv, fill=month)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(size=8, angle=0),
+        axis.title.x = element_text(size = 8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5),
+        legend.position = 'none') +
+  geom_text(aes(label = avg_clv), size = 2.5, vjust = -0.5) +
+  labs(title="CLV by Month of Start Game", x="Month", y="Average CLV") +
+  scale_fill_manual(values = unname(c(shiny_colors("orange","orange","orange","orange","orange","orange",
+                                                   "orange","orange"))))
+
+```
+
+### Average Profit Per Bet
+
+APPB determines the revenue the company is getting for each bet the customer makes.
+$$APPB = \frac{GrossMargin}{Amount of Bets}$$
+The following plot shows the distribution of the customers by APPB.
+
+```{r APPU, echo=FALSE, warning=FALSE, fig.height = 3, fig.width = 4.5, fig.align = "center"}
+
+# Chart is ploted with values from quantiles 0.05 - 0.95
+
+MI_APPU <- Marketing_Insights %>%
+  filter(APPU < quantile(Frequency, .95)  & APPU > quantile(Frequency, .05))
+
+ggplot(MI_APPU, aes(x=APPU)) + 
+  geom_histogram(bins=30,fill='salmon') +
+  theme(axis.text.x = element_text(size=8),
+        axis.title.x = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        axis.title.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5)) +
+  labs(title="APPB", x="APPB", y="Frequency") +
+  scale_fill_manual(values = unname(c(shiny_colors("orange"))))
+
+```
+
+### Operating Rate
+
+The Operating Rate determines the ability of a business to employ its resources by comparing the expenses of a company to net sales. 
+
+```{r OR, echo=FALSE, warning=FALSE, fig.height = 3, fig.width = 4.5, fig.align = "center"}
+
+ggplot(Marketing_Insights, aes(x=Operating_rate)) + 
+  geom_histogram(bins=30, fill='grey') + 
+  theme(legend.position = "top",
+        axis.text.x = element_text(size=8),
+        axis.title.x = element_text(size = 8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5)) +
+  labs(title="Operating Rate", x='Rate', y="Frequency")
+
+```
+
+
+### Sports vs Rest Rate
+
+Since Sports bets are more popular than all of the other games, the SvR Rate compare the users by this metric.
+
+```{r SVR, echo=FALSE, warning=FALSE, fig.height = 3, fig.width = 4.5, fig.align = "center"}
+
+ggplot(Marketing_Insights, aes(x=SvR_rate)) + 
+  geom_histogram(bins=30, fill='orange') + 
+  theme(legend.position = "top",
+        axis.text.x = element_text(size=8),
+        axis.title.x = element_text(size = 8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5)) +
+  labs(title="Sports vs Rest Rate", x='Rate', y="Frequency")
+
+```
+
+### Engagement Rate
+
+The Engagement Rate determine how engaged the users are are with the brand, which is useful for online businesses as the betting websites.
+$$Engagement Rate = \frac{Total Revenue}{Median Revenue}$$
+The Engagement Rate distribution of the customers of the dataset is the following:
+
+
+```{r ER, echo=FALSE, warning=FALSE, fig.height = 3, fig.width = 4.5, fig.align = "center"}
+
+MI_ER <- Marketing_Insights %>%
+  filter(Engagement_rate < quantile(Engagement_rate, .95))
+
+ggplot(MI_ER, aes(x=Engagement_rate)) + 
+  geom_histogram(bins=30, fill='salmon') +
+  theme(axis.text.x = element_text(size=8),
+        axis.title.x = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        axis.title.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5)) +
+  labs(title="Engagement Rate", x="Values", y="Frequency") 
+
+```
+
+## Clusters
+
+As an additional insight, a cluster analysis was developed with the purpose of identifying the customers.
+All of the insights mentioned before were used: Beginner_Inactivity, Recency, Frequency, Monetary, Length of Relationship, Customer Length Value, Average Profit Per Bet, Operating Rate, Engagement Rate and SvR Rate.
+
+First the standardization process was applied with the purpose of putting all the variables on the same scale to be able to compare the scores between the different types of variables.
+
+The technique used was K-means, which is each observation of the dataset is placed into one of K clusters.
+
+The second step is to choose a value for K through the elbow method, which identifies where a bend appears in the plot.
+
+```{r Elbow, echo=FALSE, warning=FALSE, echo=FALSE, warning=FALSE, fig.height = 4, fig.width = 5, fig.align = "center"}
+
+Marketing_Insights2 <- read.csv("Marketing_Insights2.csv")
+
+#standardize
+Marketing_Insights2 <- Marketing_Insights2 %>% mutate_if(is.character, as.numeric)
+std_df <- scale(subset( Marketing_Insights2, select = -UserID ))
+#create plot of number of clusters vs total within sum of squares
+wss <- sapply(2:10, function(k){kmeans(std_df, k, nstart=5 )$tot.withinss})
+plot(2:10, wss, type="b", pch = 19,  xlab="Number of clusters K", ylab="Total within-clusters sum of squares",
+     cex.lab = 0.8, cex.axis = 0.6)
+
+```
+\newpage
+Finally, the kmeans() function is used to perform k-means clustering on the dataset using K = 4:
+
+```{r , echo=FALSE, warning=FALSE, fig.align = "center", fig.height = 8}
+
+#make this example reproducible
+set.seed(1)
+
+#perform k-means clustering with k = 4 clusters
+km <- kmeans(std_df, centers = 4, nstart = 25)
+
+Marketing_Insights2 <- cbind(Marketing_Insights2, cluster = km$cluster)
+
+#Plot characteristics per Cluster
+CLUSTER_DF<- Marketing_Insights2%>% 
+  group_by(cluster) %>%
+  summarise (Beginner_Inactivity=mean(Beginner_Inactivity, na.rm=TRUE),
+             LoR=mean(LoR, na.rm=TRUE),
+             Recency=mean(Recency, na.rm=TRUE),
+             Frequency=mean(Frequency, na.rm=TRUE),
+             Monetary=mean(Monetary, na.rm=TRUE),
+             CLV=mean(CLV, na.rm=TRUE),
+             APPU=mean(APPU, na.rm=TRUE),
+             Operating_rate=mean(Operating_rate, na.rm=TRUE),
+             Engagement_rate=mean(Engagement_rate, na.rm=TRUE),
+             SvR_rate=mean(SvR_rate, na.rm=TRUE),
+             .groups = 'keep')
+
+#Plot the averages between clusters
+plot_BI<- ggplot(CLUSTER_DF, aes(x=cluster, y=Beginner_Inactivity, color=cluster)) + 
+  geom_point(size = 5) +
+  theme(legend.position='none',
+        axis.title.x = element_text(size = 8),
+        axis.text.x = element_text(size=8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5, size = 9)) +
+  labs(title="Beginner Inactivity")
+plot_LoR<- ggplot(CLUSTER_DF, aes(x=cluster, y=LoR, color=cluster)) + geom_point(size = 5) +
+  theme(legend.position='none',
+        axis.title.x = element_text(size = 8),
+        axis.text.x = element_text(size=8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5, size = 9)) +
+  labs(title="Length of Relationship")
+plot_Recency<- ggplot(CLUSTER_DF, aes(x=cluster, y=Recency, color=cluster)) + geom_point(size = 5) +
+  theme(legend.position='none',
+        axis.title.x = element_text(size = 8),
+        axis.text.x = element_text(size=8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5, size = 9)) +
+  labs(title="Recency")
+plot_Frequency<- ggplot(CLUSTER_DF, aes(x=cluster, y=Frequency, color=cluster)) + geom_point(size = 5) +
+  theme(legend.position='none',
+        axis.title.x = element_text(size = 8),
+        axis.text.x = element_text(size=8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5, size = 9)) +
+  labs(title="Frequency")
+plot_Monetary<- ggplot(CLUSTER_DF, aes(x=cluster, y=Monetary, color=cluster)) + geom_point(size = 5) +
+  theme(legend.position='none',
+        axis.title.x = element_text(size = 8),
+        axis.text.x = element_text(size=8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5, size = 9)) +
+  labs(title="Monetary")
+plot_CLV <- ggplot(CLUSTER_DF, aes(x=cluster, y=CLV, color=cluster)) + geom_point(size = 5) +
+  theme(legend.position='none',
+        axis.title.x = element_text(size = 8),
+        axis.text.x = element_text(size=8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5, size = 9)) +
+  labs(title="CLV")
+plot_APPU<- ggplot(CLUSTER_DF, aes(x=cluster, y=APPU, color=cluster)) + geom_point(size = 5) +
+  theme(legend.position='none',
+        axis.title.x = element_text(size = 8),
+        axis.text.x = element_text(size=8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5, size = 9)) +
+  labs(title="APPB")
+plot_Operating_rate<- ggplot(CLUSTER_DF, aes(x=cluster, y=Operating_rate, color=cluster)) + geom_point(size = 5) +
+  theme(legend.position='none',
+        axis.title.x = element_text(size = 8),
+        axis.text.x = element_text(size=8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5, size = 9)) +
+  labs(title="Operating Rate")
+plot_Engagement_rate<- ggplot(CLUSTER_DF, aes(x=cluster, y=Engagement_rate, color=cluster)) + geom_point(size = 5) +
+  theme(legend.position='none',
+        axis.title.x = element_text(size = 8),
+        axis.text.x = element_text(size=8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5, size = 9)) +
+  labs(title="Engagement Rate")
+plot_SvR_rate<- ggplot(CLUSTER_DF, aes(x=cluster, y=SvR_rate, color=cluster)) + geom_point(size = 5) +
+  theme(legend.position='none',
+        axis.title.x = element_text(size = 8),
+        axis.text.x = element_text(size=8),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title = element_text(hjust=0.5, size = 9)) +
+  labs(title="SVR Rate")
+
+#Plot them together
+ggarrange(plot_BI, plot_LoR, plot_Frequency, plot_Recency, plot_Monetary, plot_CLV, plot_APPU, plot_Operating_rate, plot_Engagement_rate, plot_SvR_rate,
+          ncol=2, nrow=5, font.label=list(size=9))
+
+```
+
+## Sources
+
+Datasets
+Division on Addictions, Cambridge Health Alliance, a teaching affiliate of Harvard Medical School
+PI(s): Dr. Howard J. Shaffer, Sponsor(s): bwin, Interactive Entertainment, AG
+
+LaBrie, R. A., LaPlante, D. A., Nelson, S. E., Schumann, A., & Shaffer, H. J. (2007). 
+Assessing the playing field: A prospective longitudinal study of Internet sports 
+gambling behavior. Journal of Gambling Studies, 23, 347-362.
+
+ggplot configuration
+https://www.geeksforgeeks.org/change-color-of-bars-in-barchart-using-ggplot2-in-r/
+
+Variable report
+https://community.rstudio.com/t/how-to-include-formatted-list-of-variable-definitions/8255/2
+
+Customer Lifetime Value
+https://www.leadsquared.com/learn/sales/clv-customer-lifetime-value/
+
+Engagement rate
+https://clevertap.com/blog/how-to-measure-customer-loyalty/
+
+Cluster
+https://www.statology.org/elbow-method-in-r/#:~:text=One%20of%20the%20most%20common%20ways%20to%20choose%20a%20value,bend%20appears%20in%20the%20plot.
+
+RFM Value
+https://www.investopedia.com/terms/r/rfm-recency-frequency-monetary-value.asp
+
+APPU
+https://supersonic.com/learn/blog/the-3-most-important-kpis-for-testing-your-hyper-casual-prototype/#:~:text=APPU%2C%20which%20stands%20for%20average,that%20lead%20to%20greater%20profitability.
+
+Formats
+https://www.montana.edu/rotella/documents/502/MarkdownEqnExamples.Rmd
+https://ggplot2.tidyverse.org/reference/geom_point.html
+
+Operating rate
+https://www.investopedia.com/terms/o/operatingratio.asp
